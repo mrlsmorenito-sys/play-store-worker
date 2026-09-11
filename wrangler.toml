@@ -1,0 +1,7 @@
+name = "play-store-worker"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+DEFAULT_LANG = "es"
+DEFAULT_COUNTRY = "mx"
