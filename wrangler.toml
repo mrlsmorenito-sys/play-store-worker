@@ -5,3 +5,5 @@ compatibility_date = "2024-11-01"
 [vars]
 DEFAULT_LANG = "es"
 DEFAULT_COUNTRY = "mx"
+[triggers]
+crons = ["*/10 * * * *"]
