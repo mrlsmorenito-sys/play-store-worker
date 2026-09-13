@@ -1,13 +1,9 @@
 const express = require("express");
-const puppeteer = require("puppeteer-extra");
-const StealthPlugin = require("puppeteer-extra-plugin-stealth");
-
-puppeteer.use(StealthPlugin());
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Caché en memoria de links directos (10 minutos)
+// Caché de links por 30 minutos
 const cacheLinks = new Map();
 
 // ==========================================
@@ -16,131 +12,132 @@ const cacheLinks = new Map();
 app.get("/", (req, res) => {
   res.json({
     status: "online",
-    message: "Render APK Downloader funcionando",
-    version: "1.0",
+    message: "Render APK Redirector",
     endpoints: ["/api/download?id=com.whatsapp"]
   });
 });
 
 // ==========================================
+// HELPER: obtener nombre de app desde Play Store
+// Solo lee el título del HTML (1 petición ligera)
+// ==========================================
+async function obtenerNombreApp(appId) {
+  try {
+    const url = "https://play.google.com/store/apps/details?id=" + appId + "&hl=es";
+    const resp = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36"
+      }
+    });
+
+    if (!resp.ok) return null;
+
+    const html = await resp.text();
+    const match = html.match(/<title>([^<]+)<\/title>/);
+
+    if (match && match[1]) {
+      return match[1].split(" - ")[0].trim();
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// ==========================================
+// HELPER: buscar link directo del APK en APKPure
+// ==========================================
+async function buscarApkAPKPure(appName, appId) {
+  try {
+    const nombreLimpio = (appName || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\s+/g, "-");
+
+    const urls = [
+      "https://apkpure.com/" + nombreLimpio + "/" + appId,
+      "https://apkpure.com/search?q=" + encodeURIComponent(appName || appId)
+    ];
+
+    for (const urlPagina of urls) {
+      try {
+        const resp = await fetch(urlPagina, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36",
+            "Accept": "text/html,application/xhtml+xml"
+          },
+          redirect: "follow"
+        });
+
+        if (!resp.ok) continue;
+
+        const html = await resp.text();
+        const patrones = [
+          /href="(https:\/\/d\.apkpure\.net\/[^"]+\.apk[^"]*)"/i,
+          /href="(https:\/\/download\.apkpure\.com\/[^"]+\.apk[^"]*)"/i,
+          /"(https:\/\/d\.apkpure\.net\/b\/[^"]+\.apk[^"]*)"/i
+        ];
+
+        for (const patron of patrones) {
+          const match = html.match(patron);
+          if (match && match[1]) return match[1];
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// ==========================================
 // /api/download?id=com.whatsapp
-// Redirige al APK directo
+// Devuelve SOLO el redirect (o JSON mínimo si falla)
 // ==========================================
 app.get("/api/download", async (req, res) => {
   const appId = req.query.id;
 
   if (!appId) {
-    return res.status(400).json({ error: "Falta el parámetro id" });
+    return res.status(400).json({ error: "Falta id" });
   }
 
-  // Verificar caché
+  // Ver caché
   if (cacheLinks.has(appId)) {
-    const cached = cacheLinks.get(appId);
-    if (Date.now() - cached.time < 10 * 60 * 1000) {
-      return res.redirect(302, cached.url);
+    const c = cacheLinks.get(appId);
+    if (Date.now() - c.time < 30 * 60 * 1000) {
+      return res.redirect(302, c.url);
     } else {
       cacheLinks.delete(appId);
     }
   }
 
-  let browser = null;
-
   try {
-    // ==========================================
-    // Abrir Evozi con Puppeteer Stealth
-    // ==========================================
-    browser = await puppeteer.launch({
-      headless: "new",
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
-        "--no-first-run",
-        "--no-zygote",
-        "--single-process"
-      ]
-    });
+    // 1. Nombre de la app desde Play Store
+    const appName = await obtenerNombreApp(appId);
 
-    const page = await browser.newPage();
-
-    await page.setUserAgent(
-      "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-    );
-
-    await page.setViewport({ width: 412, height: 915 });
-
-    console.log("Abriendo Evozi para: " + appId);
-
-    await page.goto("https://apps.evozi.com/apk-downloader/?id=" + appId, {
-      waitUntil: "networkidle2",
-      timeout: 30000
-    });
-
-    // Esperar a que cargue el botón de descarga
-    await new Promise(r => setTimeout(r, 3000));
-
-    // ==========================================
-    // Buscar el link del APK en la página
-    // ==========================================
-    const urlApk = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll("a"));
-
-      for (const link of links) {
-        const href = link.href || "";
-        const texto = (link.textContent || "").toLowerCase();
-
-        // Buscar links que sean de descarga
-        if (
-          href.includes(".apk") ||
-          href.includes("apkcube") ||
-          href.includes("download") ||
-          texto.includes("download")
-        ) {
-          // Verificar que no sea un link de "APK Catalog" o menu
-          if (!href.includes("catalog") && !href.includes("dmca") && !href.includes("speed")) {
-            return href;
-          }
-        }
-      }
-      return null;
-    });
-
-    await browser.close();
-    browser = null;
+    // 2. Link del APK desde APKPure
+    const urlApk = await buscarApkAPKPure(appName, appId);
 
     if (urlApk) {
-      // Guardar en caché
       cacheLinks.set(appId, { url: urlApk, time: Date.now() });
-
-      // Redirigir al APK
       return res.redirect(302, urlApk);
     } else {
-      return res.json({
-        error: false,
-        mensaje: "No se pudo obtener link directo",
-        urlManual: "https://apps.evozi.com/apk-downloader/?id=" + appId
+      return res.status(404).json({
+        error: true,
+        mensaje: "No encontrado"
       });
     }
 
   } catch (e) {
-    console.error("Error:", e.message);
-
-    if (browser) {
-      try { await browser.close(); } catch (err) {}
-    }
-
-    return res.status(500).json({
-      error: true,
-      message: "Error al procesar descarga: " + e.message,
-      urlManual: "https://apps.evozi.com/apk-downloader/?id=" + appId
-    });
+    return res.status(500).json({ error: true, mensaje: e.message });
   }
 });
 
 // ==========================================
-// INICIAR SERVIDOR
+// INICIAR
 // ==========================================
 app.listen(PORT, () => {
-  console.log("Servidor corriendo en puerto " + PORT);
+  console.log("Render APK Redirector corriendo en puerto " + PORT);
 });
