@@ -1,11 +1,17 @@
 {
-  "name": "play-store-worker",
-  "version": "1.0.0",
-  "main": "src/index.js",
+  "name": "play-store-backend",
+  "version": "2.0.0",
+  "main": "server.js",
   "scripts": {
-    "deploy": "wrangler deploy"
+    "start": "node server.js"
   },
-  "devDependencies": {
-    "wrangler": "^4.131.1"
+  "dependencies": {
+    "express": "^4.18.2",
+    "puppeteer": "^21.11.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "engines": {
+    "node": "20.x"
   }
 }
