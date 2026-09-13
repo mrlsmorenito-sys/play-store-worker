@@ -3,7 +3,9 @@ const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Caché de links por 30 minutos
+// ==========================================
+// CACHÉ DE LINKS (30 minutos)
+// ==========================================
 const cacheLinks = new Map();
 
 // ==========================================
@@ -13,13 +15,16 @@ app.get("/", (req, res) => {
   res.json({
     status: "online",
     message: "Render APK Redirector",
-    endpoints: ["/api/download?id=com.whatsapp"]
+    version: "2.0",
+    endpoints: [
+      "/api/download?id=com.whatsapp"
+    ]
   });
 });
 
 // ==========================================
-// HELPER: obtener nombre de app desde Play Store
-// Solo lee el título del HTML (1 petición ligera)
+// HELPER: Obtener nombre de la app desde Play Store
+// Solo lee el <title> del HTML (1 petición ligera)
 // ==========================================
 async function obtenerNombreApp(appId) {
   try {
@@ -36,6 +41,7 @@ async function obtenerNombreApp(appId) {
     const match = html.match(/<title>([^<]+)<\/title>/);
 
     if (match && match[1]) {
+      // Formato: "WhatsApp Messenger - Apps en Google Play"
       return match[1].split(" - ")[0].trim();
     }
     return null;
@@ -45,7 +51,7 @@ async function obtenerNombreApp(appId) {
 }
 
 // ==========================================
-// HELPER: buscar link directo del APK en APKPure
+// HELPER: Buscar link directo del APK en APKPure
 // ==========================================
 async function buscarApkAPKPure(appName, appId) {
   try {
@@ -93,8 +99,8 @@ async function buscarApkAPKPure(appName, appId) {
 }
 
 // ==========================================
-// /api/download?id=com.whatsapp
-// Devuelve SOLO el redirect (o JSON mínimo si falla)
+// ENDPOINT: /api/download?id=com.whatsapp
+// Redirige al APK directo (302)
 // ==========================================
 app.get("/api/download", async (req, res) => {
   const appId = req.query.id;
@@ -114,14 +120,18 @@ app.get("/api/download", async (req, res) => {
   }
 
   try {
-    // 1. Nombre de la app desde Play Store
+    // 1. Obtener nombre de la app desde Play Store
     const appName = await obtenerNombreApp(appId);
+    console.log("App encontrada:", appName);
 
-    // 2. Link del APK desde APKPure
+    // 2. Buscar link del APK en APKPure
     const urlApk = await buscarApkAPKPure(appName, appId);
+    console.log("APK encontrado:", urlApk);
 
     if (urlApk) {
+      // Guardar en caché
       cacheLinks.set(appId, { url: urlApk, time: Date.now() });
+      // Redirigir al APK
       return res.redirect(302, urlApk);
     } else {
       return res.status(404).json({
@@ -131,12 +141,16 @@ app.get("/api/download", async (req, res) => {
     }
 
   } catch (e) {
-    return res.status(500).json({ error: true, mensaje: e.message });
+    console.error("Error:", e.message);
+    return res.status(500).json({
+      error: true,
+      mensaje: e.message
+    });
   }
 });
 
 // ==========================================
-// INICIAR
+// INICIAR SERVIDOR
 // ==========================================
 app.listen(PORT, () => {
   console.log("Render APK Redirector corriendo en puerto " + PORT);
