@@ -41,7 +41,6 @@ async function obtenerNombreApp(appId) {
     const match = html.match(/<title>([^<]+)<\/title>/);
 
     if (match && match[1]) {
-      // Formato: "WhatsApp Messenger - Apps en Google Play"
       return match[1].split(" - ")[0].trim();
     }
     return null;
