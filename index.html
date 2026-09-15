@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TheSlap App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0D0D2B;
+            color: #FFFFFF;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .titulo {
+            color: #FFD700;
+            font-size: 28px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+            font-family: 'Arial Black', sans-serif;
+            letter-spacing: 1px;
+        }
+        .perfil {
+            background: #1E1E5A;
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            border: 2px solid #FF4081;
+            box-shadow: 0 4px 15px rgba(255, 64, 129, 0.3);
+        }
+        .foto {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: 3px solid #FF4081;
+            margin-bottom: 12px;
+            background: #0D0D2B;
+            object-fit: cover;
+        }
+        .nombre {
+            color: #FFD700;
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+        .username {
+            color: #00E5FF;
+            font-size: 14px;
+        }
+        .info {
+            background: #1A1A4D;
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 15px;
+            border: 1px solid #333366;
+        }
+        .info-item {
+            padding: 10px 0;
+            border-bottom: 1px solid #333366;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .info-item:last-child { border-bottom: none; }
+        .info-label { color: #8888AA; }
+        .info-value { color: #FFFFFF; font-weight: bold; }
+        .boton {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin-top: 20px;
+            background: #FF4081;
+            color: #FFFFFF;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+        }
+        .boton:active { opacity: 0.8; }
+    </style>
+</head>
+<body>
+    <div class="titulo">TheSlap App</div>
+    
+    <div class="perfil">
+        <img id="foto" class="foto" src="" alt="Foto" style="display:none;">
+        <div class="nombre" id="nombre">Cargando...</div>
+        <div class="username" id="username">@cargando</div>
+    </div>
+
+    <div class="info">
+        <div class="info-item">
+            <span class="info-label">ID de Telegram:</span>
+            <span class="info-value" id="user_id">-</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Idioma:</span>
+            <span class="info-value" id="user_lang">-</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Premium:</span>
+            <span class="info-value" id="user_premium">-</span>
+        </div>
+    </div>
+
+    <button class="boton" onclick="cerrar()">Continuar en la app</button>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        const user = tg.initDataUnsafe.user;
+        if (user) {
+            document.getElementById("nombre").textContent = 
+                user.first_name + " " + (user.last_name || "");
+            document.getElementById("username").textContent = 
+                "@" + (user.username || "sin_username");
+            document.getElementById("user_id").textContent = user.id;
+            document.getElementById("user_lang").textContent = user.language_code || "es";
+            document.getElementById("user_premium").textContent = 
+                user.is_premium ? "Sí ⭐" : "No";
+            
+            if (user.photo_url) {
+                const foto = document.getElementById("foto");
+                foto.src = user.photo_url;
+                foto.style.display = "inline-block";
+            }
+        } else {
+            document.getElementById("nombre").textContent = "No logueado";
+            document.getElementById("username").textContent = "Abre desde Telegram";
+        }
+
+        function cerrar() {
+            tg.close();
+        }
+    </script>
+</body>
+</html>
